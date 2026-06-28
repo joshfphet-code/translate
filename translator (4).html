@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Translate" />
+  <title>Translate</title>
+  <style>
+    :root {
+      --bg:        #0e0e11;
+      --surface:   #1a1a20;
+      --border:    #2c2c36;
+      --muted:     #44445a;
+      --subtle:    #6e6e8a;
+      --body:      #c8c8dc;
+      --bright:    #f0f0fa;
+      --ru-accent: #7b61ff;
+      --fr-accent: #ff6b6b;
+      --go:        #3dd68c;
+      --go-glow:   rgba(61,214,140,.25);
+      --radius:    14px;
+      --radius-sm: 8px;
+      --font-ui:   -apple-system, "SF Pro Rounded", "Helvetica Neue", sans-serif;
+      --font-mono: "SF Mono", "Fira Code", monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--body);
+      font-family: var(--font-ui);
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none;
+    }
+
+    .app {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 24px);
+    }
+
+    header {
+      padding: 20px 4px 18px;
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--bright);
+    }
+    header .tagline {
+      font-size: 12px;
+      color: var(--subtle);
+      letter-spacing: 0.3px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+      margin-bottom: 16px;
+    }
+
+    .input-wrap {
+      flex: 1;
+      position: relative;
+    }
+
+    .word-input {
+      width: 100%;
+      height: 56px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--bright);
+      font-family: var(--font-ui);
+      font-size: 18px;
+      font-weight: 500;
+      padding: 0 44px 0 16px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      -webkit-appearance: none;
+    }
+    .word-input::placeholder { color: var(--muted); }
+    .word-input:focus {
+      border-color: var(--go);
+      box-shadow: 0 0 0 3px var(--go-glow);
+    }
+
+    .clear-btn {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px;
+      line-height: 1;
+      display: none;
+    }
+    .word-input:not(:placeholder-shown) + .clear-btn { display: block; }
+
+    .go-btn {
+      width: 56px;
+      height: 56px;
+      flex-shrink: 0;
+      background: var(--go);
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity .15s, transform .1s;
+    }
+    .go-btn:active { transform: scale(.93); opacity: .85; }
+    .go-btn.loading { opacity: .6; pointer-events: none; }
+    .go-btn svg { width: 22px; height: 22px; }
+
+    .rows {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .lang-row {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 14px 16px 17px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .lang-row--ru { border-left: 3px solid var(--ru-accent); }
+    .lang-row--fr { border-left: 3px solid var(--fr-accent); }
+
+    .lang-id {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+      width: 36px;
+    }
+    .lang-flag { font-size: 22px; line-height: 1; }
+    .lang-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+    }
+    .lang-row--ru .lang-label { color: var(--ru-accent); }
+    .lang-row--fr .lang-label { color: var(--fr-accent); }
+
+    .lang-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .translation {
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--bright);
+      line-height: 1.2;
+      word-break: break-word;
+    }
+    .translation.empty {
+      font-size: 15px;
+      font-weight: 400;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    .phonetic {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--subtle);
+      letter-spacing: 0.3px;
+      word-break: break-word;
+    }
+    .phonetic.hidden { display: none; }
+
+    .speak-btn {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      padding: 10px;
+      cursor: pointer;
+      color: var(--muted);
+      border-radius: var(--radius-sm);
+      transition: color .2s, background .15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .lang-row--ru .speak-btn:active { color: var(--ru-accent); background: rgba(123,97,255,.1); }
+    .lang-row--fr .speak-btn:active { color: var(--fr-accent); background: rgba(255,107,107,.1); }
+    .speak-btn:disabled { opacity: .25; cursor: default; }
+    .speak-btn svg { width: 24px; height: 24px; }
+
+    .status {
+      text-align: center;
+      font-size: 12px;
+      color: var(--subtle);
+      padding: 14px 0 4px;
+      min-height: 34px;
+      letter-spacing: 0.2px;
+    }
+    .status.error   { color: #ff6b6b; }
+    .status.loading { color: var(--go); }
+
+    @keyframes shimmer {
+      0%   { background-position: -200% center; }
+      100% { background-position:  200% center; }
+    }
+    .shimmer {
+      background: linear-gradient(90deg, var(--border) 25%, var(--muted) 50%, var(--border) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 6px;
+      color: transparent !important;
+      user-select: none;
+      min-width: 80px;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <h1>Translate</h1>
+    <span class="tagline">RU · FR</span>
+  </header>
+
+  <div class="input-row">
+    <div class="input-wrap">
+      <input
+        class="word-input"
+        id="wordInput"
+        type="text"
+        placeholder="Enter a word…"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+      />
+      <button class="clear-btn" id="clearBtn" aria-label="Clear">✕</button>
+    </div>
+    <button class="go-btn" id="goBtn" aria-label="Translate">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0e0e11" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14M13 6l6 6-6 6"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="rows">
+
+    <div class="lang-row lang-row--ru">
+      <div class="lang-id">
+        <span class="lang-flag">🇷🇺</span>
+        <span class="lang-label">RU</span>
+      </div>
+      <div class="lang-body">
+        <div class="translation empty" id="ruWord">—</div>
+        <div class="phonetic hidden" id="ruPhon"></div>
+      </div>
+      <button class="speak-btn" id="ruSpeak" disabled aria-label="Pronounce in Russian">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="lang-row lang-row--fr">
+      <div class="lang-id">
+        <span class="lang-flag">🇫🇷</span>
+        <span class="lang-label">FR</span>
+      </div>
+      <div class="lang-body">
+        <div class="translation empty" id="frWord">—</div>
+        <div class="phonetic hidden" id="frPhon"></div>
+      </div>
+      <button class="speak-btn" id="frSpeak" disabled aria-label="Pronounce in French">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        </svg>
+      </button>
+    </div>
+
+  </div>
+
+  <div class="status" id="status">Enter a word and tap →</div>
+
+</div>
+
+<script>
+  const wordInput = document.getElementById('wordInput');
+  const clearBtn  = document.getElementById('clearBtn');
+  const goBtn     = document.getElementById('goBtn');
+  const status    = document.getElementById('status');
+  const ruWord    = document.getElementById('ruWord');
+  const frWord    = document.getElementById('frWord');
+  const ruSpeak   = document.getElementById('ruSpeak');
+  const frSpeak   = document.getElementById('frSpeak');
+  const ruPhon    = document.getElementById('ruPhon');
+  const frPhon    = document.getElementById('frPhon');
+
+  // ── Romanization fallback (Russian → Latin) ─────────────
+  const RU_MAP = {
+    'а':'a','б':'b','в':'v','г':'g','д':'d',
+    'е':'ye','ё':'yo','ж':'zh','з':'z','и':'i',
+    'й':'y','к':'k','л':'l','м':'m','н':'n',
+    'о':'o','п':'p','р':'r','с':'s','т':'t',
+    'у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch',
+    'ш':'sh','щ':'sch','ъ':'','ы':'y','ь':"'",
+    'э':'e','ю':'yu','я':'ya',
+    'А':'A','Б':'B','В':'V','Г':'G','Д':'D',
+    'Е':'Ye','Ё':'Yo','Ж':'Zh','З':'Z','И':'I',
+    'Й':'Y','К':'K','Л':'L','М':'M','Н':'N',
+    'О':'O','П':'P','Р':'R','С':'S','Т':'T',
+    'У':'U','Ф':'F','Х':'Kh','Ц':'Ts','Ч':'Ch',
+    'Ш':'Sh','Щ':'Sch','Ъ':'','Ы':'Y','Ь':"'",
+    'Э':'E','Ю':'Yu','Я':'Ya'
+  };
+  function romanize(t) {
+    return t.split('').map(c => RU_MAP[c] !== undefined ? RU_MAP[c] : c).join('');
+  }
+
+  // ── Wiktionary IPA lookup ─────────────────────────────────
+  // Queries each language's own Wiktionary edition for accurate IPA
+  async function fetchIPA(word, lang) {
+    // Use the native Wiktionary edition for each language
+    const editions = { ru: 'ru', fr: 'fr' };
+    const edition = editions[lang] || 'en';
+    const url = 'https://' + edition + '.wiktionary.org/api/rest_v1/page/definition/'
+      + encodeURIComponent(word.toLowerCase());
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const data = await res.json();
+
+      const entries = data[lang] || data[Object.keys(data)[0]];
+      if (!entries || !entries.length) return null;
+
+      const pron = entries[0].pronunciations;
+      if (!pron || !pron.length) return null;
+
+      const ipa = pron.find(p => p.pronunciation && (p.pronunciation.includes('/') || p.pronunciation.includes('[')));
+      return ipa ? ipa.pronunciation : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ── Translation API ───────────────────────────────────────
+  async function fetchTranslation(text, targetLang) {
+    // Always force English as source with en-US locale hint
+    const url = 'https://api.mymemory.translated.net/get?q='
+      + encodeURIComponent(text)
+      + '&langpair=en-US|' + targetLang
+      + '&de=translator@example.com';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.responseStatus !== 200) throw new Error(data.responseDetails);
+    return data.responseData.translatedText;
+  }
+
+  // ── UI ───────────────────────────────────────────────────
+  function showLoading() {
+    status.textContent = 'Translating…';
+    status.className = 'status loading';
+    goBtn.classList.add('loading');
+    ruWord.innerHTML = '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
+    ruWord.classList.add('shimmer');
+    ruWord.classList.remove('empty');
+    frWord.innerHTML = '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
+    frWord.classList.add('shimmer');
+    frWord.classList.remove('empty');
+    ruPhon.classList.add('hidden');
+    frPhon.classList.add('hidden');
+    ruSpeak.disabled = true;
+    frSpeak.disabled = true;
+  }
+
+  async function setResult(lang, translated) {
+    const wordEl = lang === 'ru' ? ruWord : frWord;
+    const phonEl = lang === 'ru' ? ruPhon : frPhon;
+    const btn    = lang === 'ru' ? ruSpeak : frSpeak;
+    wordEl.textContent = translated;
+    wordEl.classList.remove('shimmer', 'empty');
+    btn.disabled = false;
+
+    // Try Wiktionary IPA first, fall back to romanization for RU
+    const ipa = await fetchIPA(translated, lang);
+    if (ipa) {
+      phonEl.textContent = ipa;
+      phonEl.classList.remove('hidden');
+    } else if (lang === 'ru') {
+      phonEl.textContent = romanize(translated);
+      phonEl.classList.remove('hidden');
+    } else {
+      phonEl.classList.add('hidden');
+    }
+  }
+
+  function resetOutputs() {
+    ruWord.textContent = '—'; ruWord.className = 'translation empty';
+    frWord.textContent = '—'; frWord.className = 'translation empty';
+    ruPhon.textContent = ''; ruPhon.classList.add('hidden');
+    frPhon.textContent = ''; frPhon.classList.add('hidden');
+    ruSpeak.disabled = true;
+    frSpeak.disabled = true;
+    status.textContent = 'Enter a word and tap →';
+    status.className = 'status';
+    goBtn.classList.remove('loading');
+  }
+
+  // ── Translate ────────────────────────────────────────────
+  async function triggerTranslate() {
+    const word = wordInput.value.trim();
+    if (!word) {
+      status.textContent = 'Type a word first.';
+      status.className = 'status error';
+      return;
+    }
+    showLoading();
+    try {
+      const [ru, fr] = await Promise.all([
+        fetchTranslation(word, 'ru'),
+        fetchTranslation(word, 'fr')
+      ]);
+      // Set translated words immediately, IPA loads async after
+      await Promise.all([
+        setResult('ru', ru),
+        setResult('fr', fr)
+      ]);
+      status.textContent = '"' + word + '" translated';
+      status.className = 'status';
+    } catch (err) {
+      status.textContent = 'Translation failed — check your connection.';
+      status.className = 'status error';
+      ruWord.textContent = '—'; ruWord.className = 'translation empty';
+      frWord.textContent = '—'; frWord.className = 'translation empty';
+    } finally {
+      goBtn.classList.remove('loading');
+    }
+  }
+
+  // ── Events ───────────────────────────────────────────────
+  clearBtn.addEventListener('click', () => {
+    wordInput.value = '';
+    wordInput.focus();
+    resetOutputs();
+  });
+  wordInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') triggerTranslate();
+  });
+  goBtn.addEventListener('click', triggerTranslate);
+  ruSpeak.addEventListener('click', () => {});
+  frSpeak.addEventListener('click', () => {});
+</script>
+</body>
+</html>
